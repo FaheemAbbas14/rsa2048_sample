@@ -1,93 +1,101 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
 
-#include <mbedtls/ctr_drbg.h>
-#include <mbedtls/entropy.h>
-#include <mbedtls/pk.h>
+#include <psa/crypto.h>
 
 #include <string.h>
 
 #define RSA_KEY_SIZE_BITS 2048
-#define RSA_PUBLIC_EXPONENT 65537
 
-static void print_mbedtls_error(const char *label, int ret)
+static const char *psa_status_to_string(psa_status_t status)
 {
-	printk("%s failed: -0x%04x\n", label, -ret);
+	switch (status) {
+	case PSA_SUCCESS:
+		return "PSA_SUCCESS";
+	case PSA_ERROR_NOT_SUPPORTED:
+		return "PSA_ERROR_NOT_SUPPORTED";
+	case PSA_ERROR_INVALID_ARGUMENT:
+		return "PSA_ERROR_INVALID_ARGUMENT";
+	case PSA_ERROR_NOT_PERMITTED:
+		return "PSA_ERROR_NOT_PERMITTED";
+	case PSA_ERROR_BAD_STATE:
+		return "PSA_ERROR_BAD_STATE";
+	case PSA_ERROR_BUFFER_TOO_SMALL:
+		return "PSA_ERROR_BUFFER_TOO_SMALL";
+	case PSA_ERROR_INSUFFICIENT_MEMORY:
+		return "PSA_ERROR_INSUFFICIENT_MEMORY";
+	case PSA_ERROR_INSUFFICIENT_STORAGE:
+		return "PSA_ERROR_INSUFFICIENT_STORAGE";
+	default:
+		return "PSA_ERROR_UNKNOWN";
+	}
+}
+
+static void print_psa_error(const char *label, psa_status_t status)
+{
+	printk("%s failed: %d (%s)\n", label, status, psa_status_to_string(status));
 }
 
 int main(void)
 {
-	int ret;
+	psa_status_t status;
 	const unsigned char plaintext[] = "Hello from nRF5340 RSA-2048 sample";
 	unsigned char ciphertext[RSA_KEY_SIZE_BITS / 8];
 	unsigned char decrypted[128];
 	size_t ciphertext_len = 0;
 	size_t decrypted_len = 0;
-	const char *personalization = "rsa2048_sample";
-
-	mbedtls_entropy_context entropy;
-	mbedtls_ctr_drbg_context ctr_drbg;
-	mbedtls_pk_context keypair;
+	psa_key_id_t key_id = PSA_KEY_ID_NULL;
+	psa_key_attributes_t key_attributes = PSA_KEY_ATTRIBUTES_INIT;
 
 	printk("\n=== RSA-2048 Encrypt/Decrypt Sample ===\n");
 
-	mbedtls_entropy_init(&entropy);
-	mbedtls_ctr_drbg_init(&ctr_drbg);
-	mbedtls_pk_init(&keypair);
-
-	ret = mbedtls_ctr_drbg_seed(&ctr_drbg,
-				    mbedtls_entropy_func,
-				    &entropy,
-				    (const unsigned char *)personalization,
-				    strlen(personalization));
-	if (ret != 0) {
-		print_mbedtls_error("mbedtls_ctr_drbg_seed", ret);
+	status = psa_crypto_init();
+	if (status != PSA_SUCCESS) {
+		print_psa_error("psa_crypto_init", status);
 		goto cleanup;
 	}
 
-	ret = mbedtls_pk_setup(&keypair, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
-	if (ret != 0) {
-		print_mbedtls_error("mbedtls_pk_setup", ret);
-		goto cleanup;
-	}
+	psa_set_key_usage_flags(&key_attributes, PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_DECRYPT);
+	psa_set_key_algorithm(&key_attributes, PSA_ALG_RSA_PKCS1V15_CRYPT);
+	psa_set_key_type(&key_attributes, PSA_KEY_TYPE_RSA_KEY_PAIR);
+	psa_set_key_bits(&key_attributes, RSA_KEY_SIZE_BITS);
 
-	ret = mbedtls_rsa_gen_key(mbedtls_pk_rsa(keypair),
-				 mbedtls_ctr_drbg_random,
-				 &ctr_drbg,
-				 RSA_KEY_SIZE_BITS,
-				 RSA_PUBLIC_EXPONENT);
-	if (ret != 0) {
-		print_mbedtls_error("mbedtls_rsa_gen_key", ret);
+	status = psa_generate_key(&key_attributes, &key_id);
+	if (status != PSA_SUCCESS) {
+		print_psa_error("psa_generate_key", status);
 		goto cleanup;
 	}
+	psa_reset_key_attributes(&key_attributes);
 
 	printk("RSA key pair generated: %d bits\n", RSA_KEY_SIZE_BITS);
 
-	ret = mbedtls_pk_encrypt(&keypair,
-				 plaintext,
-				 sizeof(plaintext) - 1,
-				 ciphertext,
-				 &ciphertext_len,
-				 sizeof(ciphertext),
-				 mbedtls_ctr_drbg_random,
-				 &ctr_drbg);
-	if (ret != 0) {
-		print_mbedtls_error("mbedtls_pk_encrypt", ret);
+	status = psa_asymmetric_encrypt(key_id,
+					PSA_ALG_RSA_PKCS1V15_CRYPT,
+					plaintext,
+					sizeof(plaintext) - 1,
+					NULL,
+					0,
+					ciphertext,
+					sizeof(ciphertext),
+					&ciphertext_len);
+	if (status != PSA_SUCCESS) {
+		print_psa_error("psa_asymmetric_encrypt", status);
 		goto cleanup;
 	}
 
 	printk("Encryption success. Ciphertext length: %u bytes\n", (unsigned int)ciphertext_len);
 
-	ret = mbedtls_pk_decrypt(&keypair,
-				 ciphertext,
-				 ciphertext_len,
-				 decrypted,
-				 &decrypted_len,
-				 sizeof(decrypted) - 1,
-				 mbedtls_ctr_drbg_random,
-				 &ctr_drbg);
-	if (ret != 0) {
-		print_mbedtls_error("mbedtls_pk_decrypt", ret);
+	status = psa_asymmetric_decrypt(key_id,
+					PSA_ALG_RSA_PKCS1V15_CRYPT,
+					ciphertext,
+					ciphertext_len,
+					NULL,
+					0,
+					decrypted,
+					sizeof(decrypted) - 1,
+					&decrypted_len);
+	if (status != PSA_SUCCESS) {
+		print_psa_error("psa_asymmetric_decrypt", status);
 		goto cleanup;
 	}
 
@@ -103,9 +111,10 @@ int main(void)
 	}
 
 cleanup:
-	mbedtls_pk_free(&keypair);
-	mbedtls_ctr_drbg_free(&ctr_drbg);
-	mbedtls_entropy_free(&entropy);
+	psa_reset_key_attributes(&key_attributes);
+	if (key_id != PSA_KEY_ID_NULL) {
+		(void)psa_destroy_key(key_id);
+	}
 
 	return 0;
 }
