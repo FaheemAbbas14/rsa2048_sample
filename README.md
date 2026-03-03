@@ -1,6 +1,6 @@
-# RSA-1024 Encrypt/Decrypt Sample (nRF5340 + Zephyr)
+# RSA Encrypt/Decrypt Sample (nRF5340 + Zephyr)
 
-This sample uses PSA Crypto to create an RSA-1024 key pair, stores it once in LittleFS (`/lfs/rsa_keypair.bin`), loads it again on reboot, encrypts a plaintext message, decrypts it, and verifies the decrypted output matches the original plaintext.
+This sample uses PSA Crypto to create an RSA key pair (size selected via Kconfig), stores it once in LittleFS (`/lfs/rsa_keypair.bin`), loads it again on reboot, encrypts a plaintext message, decrypts it, and verifies the decrypted output matches the original plaintext.
 
 ## Code structure
 
@@ -39,12 +39,21 @@ west build -s rsa2048_sample -b nrf5340dk/nrf5340/cpuapp -d build_rsa2048 --pris
 west flash -d build_rsa2048
 ```
 
+## Key size configuration
+
+Key size is not hardcoded in source. It is selected by PSA Kconfig options in `prj.conf`:
+
+- `CONFIG_PSA_WANT_RSA_KEY_SIZE_2048=y`
+- `CONFIG_PSA_WANT_RSA_KEY_SIZE_1024=y`
+
+Enable only one of the above at a time.
+
 ## Expected UART output
 
 - First boot: `No saved key found. Generating new RSA key pair...`
 - First boot: `Generated and stored RSA key pair at /lfs/rsa_keypair.bin`
 - Reboot: `Loaded RSA key pair from /lfs/rsa_keypair.bin`
-- `RSA key pair ready: 1024 bits`
-- `Encryption success. Ciphertext length: 128 bytes`
+- `RSA key pair ready: <configured key size> bits`
+- `Encryption success. Ciphertext length: <key_size_bits/8> bytes`
 - `Decryption success. Plaintext: Hello from nRF5340 RSA`
 - `Result: PASS (decrypted text matches original)`
