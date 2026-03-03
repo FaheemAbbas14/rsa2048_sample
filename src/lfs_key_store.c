@@ -4,6 +4,7 @@
 
 #include <errno.h>
 
+/* Create/truncate file and write entire payload. */
 int lfs_key_store_write(const char *path, const uint8_t *data, size_t data_len)
 {
 	struct fs_file_t file;
@@ -31,6 +32,10 @@ int lfs_key_store_write(const char *path, const uint8_t *data, size_t data_len)
 	return 0;
 }
 
+/*
+ * Read up to data_size bytes from file.
+ * If file is larger than buffer, return -EFBIG to avoid partial silent reads.
+ */
 int lfs_key_store_read(const char *path, uint8_t *data, size_t data_size, size_t *data_len)
 {
 	struct fs_file_t file;

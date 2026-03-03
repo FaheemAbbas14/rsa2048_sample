@@ -7,6 +7,7 @@
 
 #include "rsa_key_manager.h"
 
+/* Print PSA errors with readable status name from rsa_key_manager. */
 static void print_psa_error(const char *label, psa_status_t status)
 {
 	printk("%s failed: %d (%s)\n", label, status, rsa_key_manager_status_string(status));
@@ -14,8 +15,10 @@ static void print_psa_error(const char *label, psa_status_t status)
 
 int main(void)
 {
+	/* Demo message that will be encrypted/decrypted with RSA-2048. */
 	psa_status_t status;
 	const unsigned char plaintext[] = "Hello from nRF5340 RSA-2048 sample";
+	/* RSA-2048 ciphertext size is 2048 / 8 = 256 bytes. */
 	unsigned char ciphertext[RSA_KEY_SIZE_BITS / 8];
 	unsigned char decrypted[128];
 	size_t ciphertext_len = 0;
@@ -30,6 +33,7 @@ int main(void)
 		goto cleanup;
 	}
 
+	/* Load persisted key from LittleFS, or generate + store once. */
 	status = rsa_key_manager_load_or_generate(&key_id);
 	if (status != PSA_SUCCESS) {
 		print_psa_error("rsa_key_manager_load_or_generate", status);
@@ -74,6 +78,7 @@ int main(void)
 	}
 
 cleanup:
+	/* Key handle is volatile and should be destroyed before exit. */
 	if (key_id != PSA_KEY_ID_NULL) {
 		(void)psa_destroy_key(key_id);
 	}

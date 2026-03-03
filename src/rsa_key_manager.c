@@ -11,11 +11,16 @@
 #define KEY_FILE_MAGIC 0x52534132U
 #define KEY_BLOB_MAX_SIZE 4096
 
+/*
+ * File format stored in LittleFS:
+ * [key_file_header][raw PSA-exported private key blob]
+ */
 struct key_file_header {
 	uint32_t magic;
 	uint32_t key_blob_len;
 };
 
+/* Convert common PSA status codes to readable strings for logs. */
 const char *rsa_key_manager_status_string(psa_status_t status)
 {
 	switch (status) {
@@ -42,6 +47,10 @@ const char *rsa_key_manager_status_string(psa_status_t status)
 	}
 }
 
+/*
+ * Persist a private key blob in LittleFS using a tiny header
+ * so we can validate content on reboot.
+ */
 static int write_key_blob_to_file(const uint8_t *key_blob, size_t key_blob_len)
 {
 	uint8_t file_data[sizeof(struct key_file_header) + KEY_BLOB_MAX_SIZE];
@@ -60,6 +69,10 @@ static int write_key_blob_to_file(const uint8_t *key_blob, size_t key_blob_len)
 	return lfs_key_store_write(KEY_FILE_PATH, file_data, sizeof(header) + key_blob_len);
 }
 
+/*
+ * Load and validate a private key blob from LittleFS.
+ * Returns standard negative errno values on file/format errors.
+ */
 static int read_key_blob_from_file(uint8_t *key_blob, size_t key_blob_size, size_t *key_blob_len)
 {
 	uint8_t file_data[sizeof(struct key_file_header) + KEY_BLOB_MAX_SIZE];
@@ -94,6 +107,10 @@ static int read_key_blob_from_file(uint8_t *key_blob, size_t key_blob_size, size
 	return 0;
 }
 
+/*
+ * Import a previously saved private key into PSA as a volatile key handle.
+ * This is used at startup so the key can be used by crypto APIs immediately.
+ */
 static psa_status_t import_saved_key(psa_key_id_t *key_id)
 {
 	psa_status_t status;
@@ -112,7 +129,10 @@ static psa_status_t import_saved_key(psa_key_id_t *key_id)
 		return PSA_ERROR_GENERIC_ERROR;
 	}
 
-	psa_set_key_usage_flags(&key_attributes, PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_DECRYPT);
+	psa_set_key_usage_flags(&key_attributes,
+				PSA_KEY_USAGE_ENCRYPT |
+				PSA_KEY_USAGE_DECRYPT |
+				PSA_KEY_USAGE_EXPORT);
 	psa_set_key_algorithm(&key_attributes, PSA_ALG_RSA_PKCS1V15_CRYPT);
 	psa_set_key_type(&key_attributes, PSA_KEY_TYPE_RSA_KEY_PAIR);
 	psa_set_key_bits(&key_attributes, RSA_KEY_SIZE_BITS);
@@ -124,6 +144,13 @@ static psa_status_t import_saved_key(psa_key_id_t *key_id)
 	return status;
 }
 
+/*
+ * One-time generation path:
+ * 1) generate RSA key pair,
+ * 2) export private key blob,
+ * 3) save it to LittleFS,
+ * 4) re-import as a runtime key handle.
+ */
 static psa_status_t generate_and_store_key(psa_key_id_t *key_id)
 {
 	psa_status_t status;
@@ -166,7 +193,10 @@ static psa_status_t generate_and_store_key(psa_key_id_t *key_id)
 
 	(void)psa_destroy_key(generated_key_id);
 
-	psa_set_key_usage_flags(&import_attributes, PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_DECRYPT);
+	psa_set_key_usage_flags(&import_attributes,
+				PSA_KEY_USAGE_ENCRYPT |
+				PSA_KEY_USAGE_DECRYPT |
+				PSA_KEY_USAGE_EXPORT);
 	psa_set_key_algorithm(&import_attributes, PSA_ALG_RSA_PKCS1V15_CRYPT);
 	psa_set_key_type(&import_attributes, PSA_KEY_TYPE_RSA_KEY_PAIR);
 	psa_set_key_bits(&import_attributes, RSA_KEY_SIZE_BITS);
@@ -178,6 +208,11 @@ static psa_status_t generate_and_store_key(psa_key_id_t *key_id)
 	return status;
 }
 
+/*
+ * Public entry point used by main flow:
+ * - load key from storage if present,
+ * - otherwise generate and persist it.
+ */
 psa_status_t rsa_key_manager_load_or_generate(psa_key_id_t *key_id)
 {
 	psa_status_t status;
@@ -203,6 +238,7 @@ psa_status_t rsa_key_manager_load_or_generate(psa_key_id_t *key_id)
 	return PSA_SUCCESS;
 }
 
+/* Encrypt with the managed RSA key (PKCS#1 v1.5). */
 psa_status_t rsa_key_manager_encrypt(psa_key_id_t key_id,
 				     const uint8_t *plaintext,
 				     size_t plaintext_len,
@@ -221,6 +257,7 @@ psa_status_t rsa_key_manager_encrypt(psa_key_id_t key_id,
 				     ciphertext_len);
 }
 
+/* Decrypt with the managed RSA key (PKCS#1 v1.5). */
 psa_status_t rsa_key_manager_decrypt(psa_key_id_t key_id,
 				     const uint8_t *ciphertext,
 				     size_t ciphertext_len,
@@ -237,4 +274,13 @@ psa_status_t rsa_key_manager_decrypt(psa_key_id_t key_id,
 				     plaintext,
 				     plaintext_size,
 				     plaintext_len);
+}
+
+/* Export DER-encoded RSA public key from the current key handle. */
+psa_status_t rsa_key_manager_export_public_key(psa_key_id_t key_id,
+					       uint8_t *public_key,
+					       size_t public_key_size,
+					       size_t *public_key_len)
+{
+	return psa_export_public_key(key_id, public_key, public_key_size, public_key_len);
 }
