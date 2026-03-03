@@ -8,16 +8,23 @@
 #include <psa/crypto.h>
 
 /* Derive RSA key size from enabled PSA Kconfig option. */
-#if (defined(CONFIG_PSA_WANT_RSA_KEY_SIZE_1024) && CONFIG_PSA_WANT_RSA_KEY_SIZE_1024) && \
+#define RSA_KEY_SIZE_1024_ENABLED \
+	(defined(CONFIG_PSA_WANT_RSA_KEY_SIZE_1024) && CONFIG_PSA_WANT_RSA_KEY_SIZE_1024)
+#define RSA_KEY_SIZE_2048_ENABLED \
 	(defined(CONFIG_PSA_WANT_RSA_KEY_SIZE_2048) && CONFIG_PSA_WANT_RSA_KEY_SIZE_2048)
+
+#if RSA_KEY_SIZE_1024_ENABLED && RSA_KEY_SIZE_2048_ENABLED
 #error "Enable only one RSA key size: 1024 or 2048"
-#elif defined(CONFIG_PSA_WANT_RSA_KEY_SIZE_1024) && CONFIG_PSA_WANT_RSA_KEY_SIZE_1024
+#elif RSA_KEY_SIZE_1024_ENABLED
 #define RSA_KEY_SIZE_BITS 1024
-#elif defined(CONFIG_PSA_WANT_RSA_KEY_SIZE_2048) && CONFIG_PSA_WANT_RSA_KEY_SIZE_2048
+#elif RSA_KEY_SIZE_2048_ENABLED
 #define RSA_KEY_SIZE_BITS 2048
 #else
 #error "Enable CONFIG_PSA_WANT_RSA_KEY_SIZE_1024=y or CONFIG_PSA_WANT_RSA_KEY_SIZE_2048=y"
 #endif
+
+#undef RSA_KEY_SIZE_1024_ENABLED
+#undef RSA_KEY_SIZE_2048_ENABLED
 
 /* Convert PSA status to readable constant string. */
 const char *rsa_key_manager_status_string(psa_status_t status);
