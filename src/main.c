@@ -15,17 +15,17 @@ static void print_psa_error(const char *label, psa_status_t status)
 
 int main(void)
 {
-	/* Demo message that will be encrypted/decrypted with RSA-2048. */
+	/* Demo message that will be encrypted/decrypted with RSA. */
 	psa_status_t status;
-	const unsigned char plaintext[] = "Hello from nRF5340 RSA-2048 sample";
-	/* RSA-2048 ciphertext size is 2048 / 8 = 256 bytes. */
+	const unsigned char plaintext[] = "Hello from nRF5340 RSA";
+	/* RSA ciphertext size is RSA_KEY_SIZE_BITS / 8 bytes. */
 	unsigned char ciphertext[RSA_KEY_SIZE_BITS / 8];
 	unsigned char decrypted[128];
 	size_t ciphertext_len = 0;
 	size_t decrypted_len = 0;
 	psa_key_id_t key_id = PSA_KEY_ID_NULL;
 
-	printk("\n=== RSA-2048 Encrypt/Decrypt Sample ===\n");
+	printk("\n=== RSA Encrypt/Decrypt ===\n");
 
 	status = psa_crypto_init();
 	if (status != PSA_SUCCESS) {

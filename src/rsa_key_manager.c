@@ -8,7 +8,7 @@
 #include <string.h>
 
 #define KEY_FILE_PATH "/lfs/rsa_keypair.bin"
-#define KEY_FILE_MAGIC 0x52534132U
+#define KEY_FILE_MAGIC 0x52534133U
 #define KEY_BLOB_MAX_SIZE 4096
 
 /*
@@ -42,6 +42,8 @@ const char *rsa_key_manager_status_string(psa_status_t status)
 		return "PSA_ERROR_INSUFFICIENT_STORAGE";
 	case PSA_ERROR_DOES_NOT_EXIST:
 		return "PSA_ERROR_DOES_NOT_EXIST";
+	case PSA_ERROR_GENERIC_ERROR:
+		return "PSA_ERROR_GENERIC_ERROR";
 	default:
 		return "PSA_ERROR_UNKNOWN";
 	}
@@ -120,7 +122,10 @@ static psa_status_t import_saved_key(psa_key_id_t *key_id)
 	int ret;
 
 	ret = read_key_blob_from_file(key_blob, sizeof(key_blob), &key_blob_len);
-	if (ret == -ENOENT) {
+	if (ret == -ENOENT || ret == -EINVAL || ret == -EIO || ret == -EFBIG) {
+		if (ret != -ENOENT) {
+			printk("Stored key file invalid (%d), regenerating key\n", ret);
+		}
 		return PSA_ERROR_DOES_NOT_EXIST;
 	}
 
@@ -140,6 +145,14 @@ static psa_status_t import_saved_key(psa_key_id_t *key_id)
 	status = psa_import_key(&key_attributes, key_blob, key_blob_len, key_id);
 	psa_reset_key_attributes(&key_attributes);
 	(void)memset(key_blob, 0, sizeof(key_blob));
+
+	if (status == PSA_ERROR_INVALID_ARGUMENT) {
+		/*
+		 * Stored key blob is valid file data, but not compatible with current
+		 * key attributes (for example after changing RSA key size).
+		 */
+		return PSA_ERROR_DOES_NOT_EXIST;
+	}
 
 	return status;
 }
@@ -228,7 +241,7 @@ psa_status_t rsa_key_manager_load_or_generate(psa_key_id_t *key_id)
 		return status;
 	}
 
-	printk("No saved key found. Generating new RSA-2048 key pair...\n");
+	printk("No saved key found. Generating new RSA key pair...\n");
 	status = generate_and_store_key(key_id);
 	if (status != PSA_SUCCESS) {
 		return status;

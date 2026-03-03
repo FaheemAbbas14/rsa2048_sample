@@ -1,6 +1,6 @@
-# RSA-2048 Encrypt/Decrypt Sample (nRF5340 + Zephyr)
+# RSA-1024 Encrypt/Decrypt Sample (nRF5340 + Zephyr)
 
-This sample uses PSA Crypto to create an RSA-2048 key pair, stores it once in LittleFS (`/lfs/rsa_keypair.bin`), loads it again on reboot, encrypts a plaintext message, decrypts it, and verifies the decrypted output matches the original plaintext.
+This sample uses PSA Crypto to create an RSA-1024 key pair, stores it once in LittleFS (`/lfs/rsa_keypair.bin`), loads it again on reboot, encrypts a plaintext message, decrypts it, and verifies the decrypted output matches the original plaintext.
 
 ## Code structure
 
@@ -41,10 +41,10 @@ west flash -d build_rsa2048
 
 ## Expected UART output
 
-- First boot: `No saved key found. Generating new RSA-2048 key pair...`
+- First boot: `No saved key found. Generating new RSA key pair...`
 - First boot: `Generated and stored RSA key pair at /lfs/rsa_keypair.bin`
 - Reboot: `Loaded RSA key pair from /lfs/rsa_keypair.bin`
-- `RSA key pair ready: 2048 bits`
-- `Encryption success. Ciphertext length: 256 bytes`
-- `Decryption success. Plaintext: Hello from nRF5340 RSA-2048 sample`
+- `RSA key pair ready: 1024 bits`
+- `Encryption success. Ciphertext length: 128 bytes`
+- `Decryption success. Plaintext: Hello from nRF5340 RSA`
 - `Result: PASS (decrypted text matches original)`

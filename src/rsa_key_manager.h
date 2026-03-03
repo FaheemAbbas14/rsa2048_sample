@@ -4,10 +4,20 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <zephyr/autoconf.h>
 #include <psa/crypto.h>
 
-/* Sample uses RSA-2048 only. */
+/* Derive RSA key size from enabled PSA Kconfig option. */
+#if (defined(CONFIG_PSA_WANT_RSA_KEY_SIZE_1024) && CONFIG_PSA_WANT_RSA_KEY_SIZE_1024) && \
+	(defined(CONFIG_PSA_WANT_RSA_KEY_SIZE_2048) && CONFIG_PSA_WANT_RSA_KEY_SIZE_2048)
+#error "Enable only one RSA key size: 1024 or 2048"
+#elif defined(CONFIG_PSA_WANT_RSA_KEY_SIZE_1024) && CONFIG_PSA_WANT_RSA_KEY_SIZE_1024
+#define RSA_KEY_SIZE_BITS 1024
+#elif defined(CONFIG_PSA_WANT_RSA_KEY_SIZE_2048) && CONFIG_PSA_WANT_RSA_KEY_SIZE_2048
 #define RSA_KEY_SIZE_BITS 2048
+#else
+#error "Enable CONFIG_PSA_WANT_RSA_KEY_SIZE_1024=y or CONFIG_PSA_WANT_RSA_KEY_SIZE_2048=y"
+#endif
 
 /* Convert PSA status to readable constant string. */
 const char *rsa_key_manager_status_string(psa_status_t status);
