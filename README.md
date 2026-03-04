@@ -1,5 +1,11 @@
 # RSA Encrypt/Decrypt Sample (nRF5340 + Zephyr)
 
+---
+Faheem Abbas  
+Sr Software Engineer  
+faheemabbas60@yahoo.com  
+https://www.linkedin.com/in/faheem-abbas-5a35b029/
+
 This sample uses PSA Crypto to create an RSA key pair (size selected via Kconfig), stores it once in LittleFS (`/lfs/rsa_keypair.bin`), loads it again on reboot, encrypts a plaintext message, decrypts it, and verifies the decrypted output matches the original plaintext.
 
 ## Code structure
